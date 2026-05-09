@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+// readBootstrap reads bootstrap peers from bs-nodes file.
 func readBootstrap() []string {
     data, err := os.ReadFile("bs-nodes")
     if err != nil {
@@ -27,6 +28,7 @@ func readBootstrap() []string {
     return []string{bootstrap}
 }
 
+// main launches the GUI application.
 func main() {
     a := app.New()
     w := a.NewWindow("FGov P2P Network")
