@@ -38,6 +38,33 @@ make bootstrap
 
 Binaries will be written to `./bin/` by the PowerShell script and to the local folder by the Makefile targets. The repository `.gitignore` excludes build artifacts and `bs-nodes`.
 
+**GUI (desktop app)**
+
+This repository also contains a small Fyne-based desktop controller located at `cmd/gui`. The GUI provides a simple way to start/stop the libp2p node, view the local Peer ID and connected peers, and (in future) launch or open "Apps" on the P2P network.
+
+Build with the included PowerShell helper (Windows). The PowerShell script builds the GUI with the Windows GUI subsystem flag so the console window remains hidden when the GUI runs:
+
+```powershell
+# from the repository root (Network)
+.\build.ps1 -v "1.1"
+# output: ./bin/gui-1.1.exe
+```
+
+Run the GUI on Windows by launching the produced executable (no console will appear):
+
+```powershell
+.\bin\gui-1.1.exe
+```
+
+If you prefer to build the GUI with a visible console (for debugging), run `go build` manually without the `-ldflags "-H windowsgui"` flag:
+
+```powershell
+cd cmd/gui
+go build -o ..\..\bin\gui-debug.exe
+```
+
+The GUI window is fixed-size by design. The right-hand "Apps" list is currently a placeholder ready for future functionality.
+
 **Running the bootstrap node**
 
 The bootstrap node prints a bootstrap multiaddr and writes `bs-nodes` to disk. Example:
