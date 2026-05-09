@@ -1,18 +1,22 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
 	"fgov/network/pkg/node"
 )
 
-func main() {
-    port := flag.Int("port", 52837, "listen port for bootstrap node")
-    flag.Parse()
+const PORT = 52837
+const TOPIC = "fgov-network"
 
-    n, err := node.NewNode(*port, nil)
+func main() {
+    var name string
+	fmt.Print("Enter a name for this bootstrap node: ")
+	fmt.Scanln(&name)
+	name += "-bootstrap"
+
+    n, err := node.NewNode(PORT, nil, name)
     if err != nil {
         panic(err)
     }

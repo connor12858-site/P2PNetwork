@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"fgov/network/pkg/node"
 
@@ -30,60 +31,47 @@ func main() {
     a := app.New()
     w := a.NewWindow("FGov P2P Network")
     w.Resize(fyne.NewSize(720, 480))
-    w.SetFixedSize(true)
 
     var n *node.Node
     var toggle *widget.Button
 
     status := widget.NewLabel("Stopped")
-    peerIDLabel := widget.NewLabel("Peer ID: (not started)")
+    nodeNameLabel := widget.NewLabel("Name: (not started)")
+    
+    nameEntry := widget.NewEntry()
+    nameEntry.SetPlaceHolder("Enter node name...")
 
     peersBox := container.NewVBox()
     appsBox := container.NewVBox()
 
-    var peersScroll *container.Scroll
-    var appsScroll *container.Scroll
-
     refreshViews := func() {
         peersBox.Objects = nil
-        appsBox.Objects = nil
 
         if n != nil && n.IsRunning() {
             connectedPeers := n.GetPeersSnapshot()
 
             for _, p := range connectedPeers {
-                peersBox.Add(widget.NewLabel(fmt.Sprintf("%s", p.ID)))
-            }
-
-            // Auto-expand peers scroll height based on number of peers
-            if peersScroll != nil {
-                desiredHeight := float32(len(connectedPeers)*24 + 10)
-                maxHeight := float32(360)
-                if desiredHeight > maxHeight {
-                    desiredHeight = maxHeight
+                if !strings.Contains(p.Name, "-bootstrap") {
+                    peersBox.Add(widget.NewLabel(p.Name))
                 }
-                peersScroll.SetMinSize(fyne.NewSize(320, desiredHeight))
             }
 
             status.SetText(fmt.Sprintf("Running - %d peers", len(connectedPeers)))
-            peerIDLabel.SetText("Peer ID: " + n.Host.ID().String())
+            nodeNameLabel.SetText("Name: " + n.Name)
         } else {
             status.SetText("Stopped")
-            peerIDLabel.SetText("Peer ID: (not started)")
-            if peersScroll != nil {
-                peersScroll.SetMinSize(fyne.NewSize(320, 80))
-            }
+            nodeNameLabel.SetText("Name: (not started)")
         }
 
         peersBox.Refresh()
-        appsBox.Refresh()
     }
 
     toggle = widget.NewButton("Turn On", func() {
         if n == nil || !n.IsRunning() {
             bootstrapPeers := readBootstrap()
+
             var err error
-            n, err = node.NewNode(0, bootstrapPeers)
+            n, err = node.NewNode(0, bootstrapPeers, strings.ReplaceAll(nameEntry.Text, "-bootstrap", ""))
             if err != nil {
                 status.SetText("Start error: " + err.Error())
                 return
@@ -101,10 +89,10 @@ func main() {
 
     refreshButton := widget.NewButton("Refresh", refreshViews)
 
-    peersScroll = container.NewVScroll(peersBox)
-    appsScroll = container.NewVScroll(appsBox)
+    peersScroll := container.NewVScroll(peersBox)
+    appsScroll := container.NewVScroll(appsBox)
 
-    left := container.NewVBox(peerIDLabel, status, toggle, refreshButton, widget.NewLabel("Connected Peers"), peersScroll)
+    left := container.NewVBox(nodeNameLabel, status, widget.NewLabel("Node Name:"), nameEntry, toggle, refreshButton, widget.NewLabel("Connected Peers"), peersScroll)
     right := container.NewVBox(widget.NewLabel("Apps"), appsScroll)
 
     w.SetContent(container.NewBorder(nil, nil, left, nil, right))
