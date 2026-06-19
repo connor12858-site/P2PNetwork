@@ -140,5 +140,3 @@ require (
 	honnef.co/go/js/dom v0.0.0-20210725211120-f030747120f2 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 )
-
-replace github.com/wlynxg/anet => ./replace/anet
