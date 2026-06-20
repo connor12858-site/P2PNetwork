@@ -13,18 +13,22 @@ import (
 func (n *Node) FindPeers() {
 	time.Sleep(3 * time.Second)
 
+	// Keep retrying discovery until the DHT has peers available.
 	for {
+		// Wait for at least one routing peer before attempting discovery.
 		peerChan, err := n.Discovery.FindPeers(n.Ctx, "fgov-network")
 		if err != nil {
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
+		// Process discovered peers
 		for p := range peerChan {
 			if p.ID == n.Host.ID() {
 				continue
 			}
 
+			// Add the discovered peer to the node's peer list if not already present.
 			n.peerMu.Lock()
 			n.DiscoveredPeers[p.ID] = PeerRecord{
 				Name:     defaultPeerName(p.ID.String()),
@@ -36,6 +40,7 @@ func (n *Node) FindPeers() {
 				continue
 			}
 
+			// Attempt to connect to the discovered peer in a separate goroutine.
 			go func(p peer.AddrInfo) {
 				ctx, cancel := context.WithTimeout(n.Ctx, 5*time.Second)
 				defer cancel()
@@ -93,6 +98,7 @@ func (n *Node) waitForRoutingPeers(minPeers int, timeout time.Duration) error {
 	refreshTicker := time.NewTicker(5 * time.Second)
 	defer refreshTicker.Stop()
 
+	// Keep checking the routing table until we have enough peers or timeout occurs.
 	for {
 		if len(n.DHT.RoutingTable().ListPeers()) >= minPeers {
 			return nil
