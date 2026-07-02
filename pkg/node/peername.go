@@ -12,6 +12,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
+// peerNameProtocolID is the protocol ID used for exchanging peer names.
 type peerNamePayload struct {
 	Name string `json:"name"`
 }
@@ -54,11 +55,11 @@ func (n *Node) displayName() string {
 
 // Creates a default node name based on the hostname and peer ID.
 func defaultNodeName(peerID string) string {
-    hostname, err := os.Hostname()
-    if err != nil || strings.TrimSpace(hostname) == "" {
-        return "node-" + shortPeerLabel(peerID)
-    }
-    return strings.TrimSpace(hostname) + "-" + shortPeerLabel(peerID)
+	hostname, err := os.Hostname()
+	if err != nil || strings.TrimSpace(hostname) == "" {
+		return "node-" + shortPeerLabel(peerID)
+	}
+	return strings.TrimSpace(hostname) + "-" + shortPeerLabel(peerID)
 }
 
 // syncPeerName exchanges names with a peer and updates the peer's name in the local peer map.
