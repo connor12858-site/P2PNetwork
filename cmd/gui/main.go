@@ -13,25 +13,53 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// readBootstrap reads bootstrap peers from bs-nodes file.
-func readBootstrap() []string {
-    data, err := os.ReadFile("bs-nodes")
+// Global variables
+var BOOTSTRAP_ADDRESS = ""
+var BOOTSTRAP_PEERS = make([]string, 0, 1)
+var TOPIC = ""
+var PORT = 0
+
+// config reads the configuration from config.yaml and sets the global variables.
+func config() {
+    // Check for the yaml file first
+    if _, err := os.Stat("config.yaml"); os.IsNotExist(err) {
+        os.Exit(1)
+    }
+
+    // Gather the data
+    data, err := os.ReadFile("config.yaml")
     if err != nil {
-        return nil
+        fmt.Println("Error reading config.yaml:", err)
+        os.Exit(1)
     }
 
-    bootstrap := string(data)
-    if bootstrap == "" {
-        return nil
+    // Save the data
+    lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+    for _, line := range lines {
+        if strings.HasPrefix(line, "port:") {
+            fmt.Sscanf(line, "port: %d", &PORT)
+        } else if strings.HasPrefix(line, "topic:") {   
+            fmt.Sscanf(line, "topic: %s", &TOPIC)
+        } else if strings.HasPrefix(line, "bootstrap:") {
+            fmt.Sscanf(line, "bootstrap: %s", &BOOTSTRAP_ADDRESS)
+        }
     }
+}
 
-    return []string{bootstrap}
+// Reads bootstrap peers from bs-nodes file.
+func get_bootstrap() {
+    data, err := os.ReadFile("bs-nodes")
+    if err == nil && len(strings.TrimSpace(string(data))) > 0 {
+        bootstrap := strings.TrimSpace(string(data))
+        fmt.Println("Bootstrap multiaddr from file:", bootstrap)
+        BOOTSTRAP_PEERS = append(BOOTSTRAP_PEERS, bootstrap)
+    }
 }
 
 // main launches the GUI application.
 func main() {
     a := app.New()
-    w := a.NewWindow("FGov P2P Network")
+    w := a.NewWindow("P2P Network")
     w.Resize(fyne.NewSize(720, 480))
 
     var n *node.Node
@@ -70,16 +98,14 @@ func main() {
 
     toggle = widget.NewButton("Turn On", func() {
         if n == nil || !n.IsRunning() {
-            bootstrapPeers := readBootstrap()
-
             var err error
-            n, err = node.NewNode(0, bootstrapPeers, strings.ReplaceAll(nameEntry.Text, "-bootstrap", ""))
+            n, err = node.NewNode(PORT, BOOTSTRAP_PEERS, strings.ReplaceAll(nameEntry.Text, "-bootstrap", ""))
             if err != nil {
                 status.SetText("Start error: " + err.Error())
                 return
             }
 
-            n.StartDiscovery("fgov-network")
+            n.StartDiscovery(TOPIC)
             toggle.SetText("Turn Off")
         } else {
             n.Close()
