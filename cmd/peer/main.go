@@ -2,7 +2,10 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 
@@ -11,68 +14,69 @@ import (
 )
 
 // global variables
-var PORT = 0
-var TOPIC = ""
-var BOOTSTRAP_ADDRESS = ""
-var BOOTSTRAP_PEERS = make([]string, 0, 1)
-
-// config reads the configuration from config.yaml and sets the global variables.
-func config() {
-	// Check for the yaml file first
-	if _, err := os.Stat("config.yaml"); os.IsNotExist(err) {
-		fmt.Println("config.yaml not found. Please create the file with the following content:")
-		fmt.Println("port: <your_port>")
-		fmt.Println("topic: <your_topic>")
-		fmt.Println("server: <bootstrap_address>")
-		util.StopProgram(1)
-	}
-
-	// Gather the data
-	data, err := os.ReadFile("config.yaml")
-	if err != nil {
-		fmt.Println("Error reading config.yaml:", err)
-		util.StopProgram(1)
-	}
-
-	// Save the data
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "port:") {
-			fmt.Sscanf(line, "port: %d", &PORT)
-		} else if strings.HasPrefix(line, "topic:") {
-			fmt.Sscanf(line, "topic: %s", &TOPIC)
-		} else if strings.HasPrefix(line, "server:") {
-			fmt.Sscanf(line, "server: %s", &BOOTSTRAP_ADDRESS)
-		}
-	}
+type BootstrapNode struct {
+	PeerID  string `json:"peer_id"`
+	Address string `json:"address"`
+	Name    string `json:"name"`
 }
+
+type BootstrapResponse struct {
+	Nodes []BootstrapNode `json:"nodes"`
+}
+
+var BOOTSTRAP_PEERS = make([]string, 0, 1)
+var cfg *util.Config
+var err error
 
 // read the bootstrap address
 func get_bootstrap() {
-	data, err := os.ReadFile("bs-nodes")
-	if err == nil && len(strings.TrimSpace(string(data))) > 0 {
-		bootstrap := strings.TrimSpace(string(data))
-		fmt.Println("Bootstrap multiaddr from file:", bootstrap)
-		BOOTSTRAP_PEERS = append(BOOTSTRAP_PEERS, bootstrap)
+	resp, err := http.Get(cfg.Server)
+	if err != nil {
+		fmt.Println("Error fetching bootstrap nodes:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Println("Bootstrap fetch failed:", resp.Status, string(body))
+		return
+	}
+
+	var result BootstrapResponse
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		fmt.Println("Error decoding bootstrap response:", err)
+		return
+	}
+
+	for _, node := range result.Nodes {
+		if strings.TrimSpace(node.Address) == "" {
+			continue
+		}
+
+		full_addr := node.Address + "/p2p/" + node.PeerID
+		fmt.Println("Bootstrap node:", full_addr)
+		BOOTSTRAP_PEERS = append(BOOTSTRAP_PEERS, full_addr)
 	}
 }
 
 // main is the entry point of the application and acts as the peer runner.
 func main() {
-	config()
+	cfg, err = util.LoadConfig("config.yaml")
+	if err != nil {
+		fmt.Println(err)
+		util.StopProgram(1)
+	}
 
 	get_bootstrap()
 
-	var name string
-	fmt.Print("Enter a name for this node: ")
-	fmt.Scanln(&name)
-
-	n, err := node.NewNode(PORT, BOOTSTRAP_PEERS, name)
+	n, err := node.NewNode(cfg.Port, BOOTSTRAP_PEERS, cfg.Name)
 	if err != nil {
 		panic(err)
 	}
 
-	go n.AdvertiseDiscovery(TOPIC)
+	go n.AdvertiseDiscovery(cfg.Topic)
 	go n.FindPeers()
 
 	scanner := bufio.NewScanner(os.Stdin)
