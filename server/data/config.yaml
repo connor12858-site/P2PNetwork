@@ -1,0 +1,9 @@
+# Network
+port: 8000
+host: 0.0.0.0
+
+# Auth
+password: abc123
+
+# Database
+bs-path: ./data/bootstraps
