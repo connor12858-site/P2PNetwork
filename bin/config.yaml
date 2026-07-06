@@ -1,0 +1,11 @@
+# Network
+port: 0
+server: http://127.0.0.1:8000
+password: abc123
+
+# Personalization
+topic: fgov
+name: Desk
+
+# Debug
+logging: false

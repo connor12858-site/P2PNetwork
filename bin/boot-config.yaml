@@ -1,0 +1,13 @@
+# P2P Network Configuration
+port: 52837
+
+# Bootstrap Server
+server: http://127.0.0.1:8000
+password: abc123
+
+# Personalization
+topic: fgov
+name: Test-bootstrap
+
+# Debug
+logging: false

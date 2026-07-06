@@ -1,12 +1,5 @@
-# Ignore local bootstrap binaries
-bootstrap-node.exe
-cmd/bootstrap/bootstrap-node.exe
-peer-node.exe
-peer-node.exe~
-bs-nodes
-
 # Build output directory
-/bin/
+
 
 # Windows executables
 *.exe
