@@ -2,41 +2,36 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fgov/network/pkg/node"
+	"fgov/network/pkg/util"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 )
 
-const PORT = 52837
-const TOPIC = "fgov-network"
-
-const BOOTSTRAP_API = "https://fgov.connor12858.workers.dev"
-
-// const BOOTSTRAP_API = "http://127.0.0.1:8787/"
-
+var cfg *util.Config
 var n *node.Node
 var err error
 
-// Check if the machine is connected to the internet by making a simple HTTP request.
-func isConnected() bool {
-	timeout := 5 * time.Second
-	client := http.Client{Timeout: timeout}
-	_, err := client.Get("https://firefox.com")
-	return err == nil
-}
-
 // Initialize the bootstrap node and print its multiaddr for other nodes to connect to.
 func init() {
-	var name string
-	fmt.Print("Enter a name for this bootstrap node: ")
-	fmt.Scanln(&name)
-	name += "-bootstrap"
+	cfg, err = util.LoadConfig("boot-config.yaml")
+	if err != nil {
+		fmt.Println(err)
+		util.StopProgram(1)
+	}
 
-	n, err = node.NewNode(PORT, nil, name)
+	fmt.Println(cfg.Port)
+	fmt.Println(cfg.Topic)
+	fmt.Println(cfg.Server)
+	fmt.Println(cfg.Logging)
+	fmt.Println(cfg.Name)
+
+	n, err = node.NewNode(cfg.Port, nil, cfg.Name)
 	if err != nil {
 		panic(err)
 	}
@@ -51,28 +46,47 @@ func init() {
 	fmt.Println()
 }
 
-// If the machine is online, upload the bootstrap multiaddr to the API endpoint for other nodes to fetch. If offline, just print the multiaddr and wait for the user to copy it.
-func online() {
-	// Upload the bootstrap multiaddr to api end point for other nodes to fetch
-	fmt.Println("Connected to the internet.")
+// run_bootstrap uploads the bootstrap multiaddr to the API endpoint for other nodes to fetch.
+func run_bootstrap() {
+	address := n.Host.Addrs()[0].String()
 
-	// Send the bootstrap multiaddr to the API endpoint as JSON
-	// Create the JSON payload
-	payload := fmt.Sprintf(`{"name": "%s", "addr": "%s"}`, n.Name, n.Host.Addrs()[0].String())
-	fmt.Println(payload)
-	// Send the POST request
-	resp, err := http.Post(BOOTSTRAP_API, "application/json", bytes.NewBuffer([]byte(payload)))
-	if err != nil {
-		fmt.Println("Error uploading bootstrap multiaddr:", err)
-	} else {
-		fmt.Println("Bootstrap multiaddr uploaded successfully.")
-		resp.Body.Close()
+	node := map[string]string{
+		"peer_id": n.Host.ID().String(),
+		"address": address,
+		"name":    cfg.Name,
 	}
 
-}
+	jsonData, err := json.Marshal(node)
+	if err != nil {
+		fmt.Println("Error marshaling bootstrap node:", err)
+		util.StopProgram(1)
+	}
 
-func offline() {
-	fmt.Println("Not connected to the internet.")
+	url := fmt.Sprintf("%s/register?password=%s", cfg.Server, cfg.Password)
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		util.StopProgram(1)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error uploading bootstrap node:", err)
+		util.StopProgram(1)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Println("Bootstrap upload failed:", resp.Status, string(body))
+		util.StopProgram(1)
+	}
+
+	fmt.Println("Bootstrap node uploaded successfully.")
 }
 
 func main() {
@@ -88,29 +102,38 @@ func main() {
 		sig := <-sigChan
 		fmt.Printf("Received signal: %v\n", sig)
 
-		// Delete the bootstrap multiaddr from the API endpoint if online
-		if isConnected() {
-			payload := fmt.Sprintf(`{"delete": "%s"}`, n.Name)
-			req, err := http.Post(BOOTSTRAP_API, "application/json", bytes.NewBuffer([]byte(payload)))
-			if err != nil {
-				fmt.Println("Error deleting bootstrap multiaddr:", err)
-			} else {
-				fmt.Println("Bootstrap multiaddr deleted successfully.")
-				req.Body.Close()
-			}
-		} else {
-			fmt.Println("Not connected to the internet, skipping deletion of bootstrap multiaddr.")
+		peerID := n.Host.ID().String()
+
+		url := fmt.Sprintf("%s/register/%s?password=%s",
+			cfg.Server,
+			peerID,
+			cfg.Password,
+		)
+
+		req, err := http.NewRequest("DELETE", url, nil)
+		if err != nil {
+			fmt.Println("Error creating delete request:", err)
+			os.Exit(1)
 		}
 
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			fmt.Println("Error deleting bootstrap node:", err)
+			os.Exit(1)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 && resp.StatusCode != 204 {
+			body, _ := io.ReadAll(resp.Body)
+			fmt.Println("Delete failed:", resp.Status, string(body))
+		}
+
+		fmt.Println("Bootstrap node removed successfully.")
 		os.Exit(0)
 	}()
 
-	// Detect if connected to internet
-	if isConnected() {
-		online()
-	} else {
-		offline()
-	}
+	run_bootstrap()
 
 	select {}
 }
