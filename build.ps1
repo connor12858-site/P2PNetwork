@@ -16,9 +16,9 @@ foreach ($type in Get-ChildItem -Path .\cmd) {
     Write-Host "Building $($type.Name)..."
     $output = "$($type.Name)-$v.exe"
     if ($type.Name -eq "gui") {
-        go build -ldflags "-H=windowsgui" -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
+        go build -x -ldflags "-H=windowsgui" -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
     } else {
-        go build -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
+        go build -x -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
     }
 
 }

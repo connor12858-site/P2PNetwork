@@ -25,15 +25,18 @@ func run_bootstrap() {
 	fmt.Println("\nBOOTSTRAP INFO\n========")
 	fmt.Println("Bootstrap node started.")
 
-	// Get the external address of the bootstrap node. Here, we assume the first address is the one to use.
+	// Prefer a non-loopback, non-link-local address for remote peers.
 	address := n.Host.Addrs()[0].String()
 
-	// Filter for the correct ip
 	var externalAddress string
 	for _, addr := range n.Host.Addrs() {
 		addrStr := addr.String()
-		// Now skip if loopback address
-		if !strings.Contains(addrStr, "127.0.0.1") && !strings.Contains(addrStr, "::1") && !strings.Contains(addrStr, "0.0.") {
+		// Skip loopback and link-local addresses that remote peers cannot route to.
+		if !strings.Contains(addrStr, "127.0.0.1") &&
+			!strings.Contains(addrStr, "::1") &&
+			!strings.Contains(addrStr, "0.0.") &&
+			!strings.Contains(addrStr, "169.254.") &&
+			!strings.Contains(addrStr, "fe80:") {
 			externalAddress = addrStr
 			break
 		}
@@ -45,9 +48,10 @@ func run_bootstrap() {
 	}
 	fmt.Println("Using external address:", address)
 
-	node := map[string]string{
+	node := map[string]any{
 		"peer_id": n.Host.ID().String(),
 		"address": address,
+		"port":    cfg.Port,
 		"name":    cfg.Name,
 	}
 
