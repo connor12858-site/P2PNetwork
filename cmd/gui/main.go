@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"os"
+	"io"
+	"net/http"
 	"strings"
 
 	"fgov/network/pkg/node"
+	"fgov/network/pkg/util"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -13,116 +16,146 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// Global variables
-var BOOTSTRAP_ADDRESS = ""
-var BOOTSTRAP_PEERS = make([]string, 0, 1)
-var TOPIC = ""
-var PORT = 0
-
-// config reads the configuration from config.yaml and sets the global variables.
-func config() {
-    // Check for the yaml file first
-    if _, err := os.Stat("config.yaml"); os.IsNotExist(err) {
-        os.Exit(1)
-    }
-
-    // Gather the data
-    data, err := os.ReadFile("config.yaml")
-    if err != nil {
-        fmt.Println("Error reading config.yaml:", err)
-        os.Exit(1)
-    }
-
-    // Save the data
-    lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-    for _, line := range lines {
-        if strings.HasPrefix(line, "port:") {
-            fmt.Sscanf(line, "port: %d", &PORT)
-        } else if strings.HasPrefix(line, "topic:") {   
-            fmt.Sscanf(line, "topic: %s", &TOPIC)
-        } else if strings.HasPrefix(line, "bootstrap:") {
-            fmt.Sscanf(line, "bootstrap: %s", &BOOTSTRAP_ADDRESS)
-        }
-    }
+// global variables
+type BootstrapNode struct {
+	PeerID  string `json:"peer_id"`
+	Address string `json:"address"`
+	Name    string `json:"name"`
 }
+
+type BootstrapResponse struct {
+	Nodes []BootstrapNode `json:"nodes"`
+}
+
+var BOOTSTRAP_PEERS = make([]string, 0, 1)
+var cfg *util.Config
+var err error
 
 // Reads bootstrap peers from bs-nodes file.
 func get_bootstrap() {
-    data, err := os.ReadFile("bs-nodes")
-    if err == nil && len(strings.TrimSpace(string(data))) > 0 {
-        bootstrap := strings.TrimSpace(string(data))
-        fmt.Println("Bootstrap multiaddr from file:", bootstrap)
-        BOOTSTRAP_PEERS = append(BOOTSTRAP_PEERS, bootstrap)
-    }
+	resp, err := http.Get(cfg.Server)
+	if err != nil {
+		fmt.Println("Error fetching bootstrap nodes:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Println("Bootstrap fetch failed:", resp.Status, string(body))
+		return
+	}
+
+	var result BootstrapResponse
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		fmt.Println("Error decoding bootstrap response:", err)
+		return
+	}
+
+	for _, node := range result.Nodes {
+		if strings.TrimSpace(node.Address) == "" {
+			continue
+		}
+
+		full_addr := node.Address + "/p2p/" + node.PeerID
+		fmt.Println("Bootstrap node:", full_addr)
+		BOOTSTRAP_PEERS = append(BOOTSTRAP_PEERS, full_addr)
+	}
+}
+
+func init() {
+	cfg, err = util.LoadConfig("config.yaml")
+	if err != nil {
+		fmt.Println(err)
+		util.StopProgram(1)
+	}
+
+	cfg.PrintData()
 }
 
 // main launches the GUI application.
 func main() {
-    a := app.New()
-    w := a.NewWindow("P2P Network")
-    w.Resize(fyne.NewSize(720, 480))
+	get_bootstrap()
 
-    var n *node.Node
-    var toggle *widget.Button
+	a := app.New()
+	w := a.NewWindow("P2P Network")
+	w.Resize(fyne.NewSize(720, 480))
 
-    status := widget.NewLabel("Stopped")
-    nodeNameLabel := widget.NewLabel("Name: (not started)")
-    
-    nameEntry := widget.NewEntry()
-    nameEntry.SetPlaceHolder("Enter node name...")
+	var n *node.Node
+	var toggle *widget.Button
 
-    peersBox := container.NewVBox()
-    appsBox := container.NewVBox()
+	status := widget.NewLabel("Stopped")
+	nodeNameLabel := widget.NewLabel("Name: (not started)")
+	progressLabel := widget.NewLabel("Ready")
+	progressLabel.Wrapping = fyne.TextWrapWord
 
-    refreshViews := func() {
-        peersBox.Objects = nil
+	nameEntry := widget.NewEntry()
+	nameEntry.SetText(cfg.Name) // Set the default name from config
+	nameEntryWrap := container.NewGridWrap(fyne.NewSize(240, nameEntry.MinSize().Height), nameEntry)
 
-        if n != nil && n.IsRunning() {
-            connectedPeers := n.GetPeersSnapshot()
+	peersBox := container.NewVBox()
+	appsBox := container.NewVBox()
 
-            for _, p := range connectedPeers {
-                if !strings.Contains(p.Name, "-bootstrap") {
-                    peersBox.Add(widget.NewLabel(p.Name))
-                }
-            }
+	refreshViews := func() {
+		peersBox.Objects = nil
 
-            status.SetText(fmt.Sprintf("Running - %d peers", len(connectedPeers)))
-            nodeNameLabel.SetText("Name: " + n.Name)
-        } else {
-            status.SetText("Stopped")
-            nodeNameLabel.SetText("Name: (not started)")
-        }
+		if n != nil && n.IsRunning() {
+			connectedPeers := n.GetPeersSnapshot()
 
-        peersBox.Refresh()
-    }
+			for _, p := range connectedPeers {
+				if !strings.Contains(p.Name, "-bootstrap") {
+					peersBox.Add(widget.NewLabel(p.Name))
+				}
+			}
 
-    toggle = widget.NewButton("Turn On", func() {
-        if n == nil || !n.IsRunning() {
-            var err error
-            n, err = node.NewNode(PORT, BOOTSTRAP_PEERS, strings.ReplaceAll(nameEntry.Text, "-bootstrap", ""))
-            if err != nil {
-                status.SetText("Start error: " + err.Error())
-                return
-            }
+			status.SetText(fmt.Sprintf("Running - %d peers", len(connectedPeers)))
+			nodeNameLabel.SetText("Name: " + n.Name)
+			nameEntry.Disable() // Disable the name entry when the node is running
+		} else {
+			status.SetText("Stopped")
+			nodeNameLabel.SetText("Name: (not started)")
+			nameEntry.Enable() // Enable the name entry when the node is stopped
+		}
 
-            n.StartDiscovery(TOPIC)
-            toggle.SetText("Turn Off")
-        } else {
-            n.Close()
-            toggle.SetText("Turn On")
-        }
+		peersBox.Refresh()
+	}
 
-        refreshViews()
-    })
+	toggle = widget.NewButton("Turn On", func() {
+		if n == nil || !n.IsRunning() {
+			var err error
+			progressLabel.SetText("Starting node...")
+			n, err = node.NewNode(cfg.Port, BOOTSTRAP_PEERS, strings.ReplaceAll(nameEntry.Text, "-bootstrap", ""))
+			if err != nil {
+				status.SetText("Start error: " + err.Error())
+				progressLabel.SetText("Start failed: " + err.Error())
+				return
+			}
 
-    refreshButton := widget.NewButton("Refresh", refreshViews)
+			n.StartDiscovery(cfg.Topic)
+			progressLabel.SetText("Node started and discovery enabled")
+			toggle.SetText("Turn Off")
+		} else {
+			progressLabel.SetText("Stopping node...")
+			n.Close()
+			progressLabel.SetText("Node stopped")
+			toggle.SetText("Turn On")
+		}
 
-    peersScroll := container.NewVScroll(peersBox)
-    appsScroll := container.NewVScroll(appsBox)
+		refreshViews()
+	})
 
-    left := container.NewVBox(nodeNameLabel, status, widget.NewLabel("Node Name:"), nameEntry, toggle, refreshButton, widget.NewLabel("Connected Peers"), peersScroll)
-    right := container.NewVBox(widget.NewLabel("Apps"), appsScroll)
+	refreshButton := widget.NewButton("Refresh", refreshViews)
 
-    w.SetContent(container.NewBorder(nil, nil, left, nil, right))
-    w.ShowAndRun()
+	peersScroll := container.NewVScroll(peersBox)
+	appsScroll := container.NewVScroll(appsBox)
+
+	top := container.NewHBox(nodeNameLabel, status, widget.NewLabel("Node Name:"), nameEntryWrap, toggle, refreshButton)
+	left := container.NewVBox(widget.NewLabel("Connected Peers"), peersScroll)
+	right := container.NewVBox(widget.NewLabel("Apps"), appsScroll)
+	main_con := container.NewHSplit(left, right)
+	bottom := container.NewPadded(progressLabel)
+
+	w.SetContent(container.NewBorder(top, bottom, nil, nil, main_con))
+	w.ShowAndRun()
 }
