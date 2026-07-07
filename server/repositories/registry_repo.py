@@ -1,4 +1,16 @@
 from database import get_connection
+import re
+
+
+def _resolve_port(node):
+    if node.port is not None:
+        return node.port
+
+    match = re.search(r"/tcp/(\d+)(?:/|$)", node.address)
+    if match:
+        return int(match.group(1))
+
+    raise ValueError("bootstrap node port is required")
 
 
 def all_nodes():
@@ -18,6 +30,8 @@ def register(node):
 
     conn = get_connection()
 
+    port = _resolve_port(node)
+
     conn.execute("""
         INSERT INTO bootstrap_nodes(peer_id,address,port)
         VALUES(?,?,?)
@@ -29,7 +43,7 @@ def register(node):
     """, (
         node.peer_id,
         node.address,
-        node.port
+        port
     ))
 
     conn.commit()
