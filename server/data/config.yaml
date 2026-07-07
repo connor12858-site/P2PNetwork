@@ -3,7 +3,8 @@ port: 8000
 host: 0.0.0.0
 
 # Auth
+.env: true
 password: abc123
 
 # Database
-bs-path: ./data/bootstraps
+db: ./data/bootstraps.db
