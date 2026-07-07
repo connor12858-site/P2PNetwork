@@ -13,3 +13,4 @@
 .vscode/
 
 replace/
+/server/__pycache__
