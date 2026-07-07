@@ -122,6 +122,7 @@ func NewNode(listenPort int, bootstrapPeers []string, name string) (*Node, error
 	}
 
 	// Log the node startup information, including peer ID and listening addresses.
+	fmt.Println("\nNODE INFO\n========")
 	fmt.Println("Node started")
 	fmt.Println("Peer ID:", h.ID().String())
 

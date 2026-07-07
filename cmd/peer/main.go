@@ -61,16 +61,22 @@ func get_bootstrap() {
 	}
 }
 
-// main is the entry point of the application and acts as the peer runner.
-func main() {
+// init loads the configuration from config.yaml and prints the values for debugging.
+func init() {
 	cfg, err = util.LoadConfig("config.yaml")
 	if err != nil {
 		fmt.Println(err)
 		util.StopProgram(1)
 	}
 
+	cfg.PrintData()
+}
+
+// main is the entry point of the application and acts as the peer runner.
+func main() {
 	get_bootstrap()
 
+	// Create a new node with the specified port, bootstrap peers, and name.
 	n, err := node.NewNode(cfg.Port, BOOTSTRAP_PEERS, cfg.Name)
 	if err != nil {
 		panic(err)
@@ -79,6 +85,7 @@ func main() {
 	go n.AdvertiseDiscovery(cfg.Topic)
 	go n.FindPeers()
 
+	// Start a command-line interface for user interaction with the node.
 	scanner := bufio.NewScanner(os.Stdin)
 
 	fmt.Println("\nCommands:")
@@ -120,5 +127,9 @@ func main() {
 		}
 
 		fmt.Print("> ")
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Scanner error:", err)
 	}
 }

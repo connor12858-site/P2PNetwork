@@ -10,45 +10,40 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 )
 
+// global variables
 var cfg *util.Config
 var n *node.Node
 var err error
 
-// Initialize the bootstrap node and print its multiaddr for other nodes to connect to.
-func init() {
-	cfg, err = util.LoadConfig("boot-config.yaml")
-	if err != nil {
-		fmt.Println(err)
-		util.StopProgram(1)
-	}
-
-	fmt.Println(cfg.Port)
-	fmt.Println(cfg.Topic)
-	fmt.Println(cfg.Server)
-	fmt.Println(cfg.Logging)
-	fmt.Println(cfg.Name)
-
-	n, err = node.NewNode(cfg.Port, nil, cfg.Name)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println("\nBootstrap node started.")
-
-	// Print the peer ID to let the user copy the bootstrap multiaddr if needed.
-	fmt.Println("Peer ID:", n.Host.ID().String())
-
-	save_addr := n.Host.Addrs()[0].String() + "/p2p/" + n.Host.ID().String()
-	fmt.Println("Bootstrap multiaddr:", save_addr)
-	fmt.Println()
-}
-
 // run_bootstrap uploads the bootstrap multiaddr to the API endpoint for other nodes to fetch.
 func run_bootstrap() {
+	// Print the bootstrap node's multiaddr for other nodes to connect to.
+	fmt.Println("\nBOOTSTRAP INFO\n========")
+	fmt.Println("Bootstrap node started.")
+
+	// Get the external address of the bootstrap node. Here, we assume the first address is the one to use.
 	address := n.Host.Addrs()[0].String()
+
+	// Filter for the correct ip
+	var externalAddress string
+	for _, addr := range n.Host.Addrs() {
+		addrStr := addr.String()
+		// Now skip if loopback address
+		if !strings.Contains(addrStr, "127.0.0.1") && !strings.Contains(addrStr, "::1") && !strings.Contains(addrStr, "0.0.") {
+			externalAddress = addrStr
+			break
+		}
+	}
+
+	// Update the address
+	if externalAddress != "" {
+		address = externalAddress
+	}
+	fmt.Println("Using external address:", address)
 
 	node := map[string]string{
 		"peer_id": n.Host.ID().String(),
@@ -89,7 +84,26 @@ func run_bootstrap() {
 	fmt.Println("Bootstrap node uploaded successfully.")
 }
 
+// init loads the configuration from boot-config.yaml and prints the values for debugging.
+func init() {
+	// Load the config
+	cfg, err = util.LoadConfig("boot-config.yaml")
+	if err != nil {
+		fmt.Println(err)
+		util.StopProgram(1)
+	}
+
+	cfg.PrintData()
+}
+
+// main launches the bootstrap node, registers it with the server, and handles graceful shutdown.
 func main() {
+	// Create a new node for bootstrap
+	n, err = node.NewNode(cfg.Port, nil, cfg.Name)
+	if err != nil {
+		panic(err)
+	}
+
 	sigChan := make(chan os.Signal, 1)
 
 	signal.Notify(sigChan,
@@ -99,6 +113,7 @@ func main() {
 	)
 
 	go func() {
+
 		sig := <-sigChan
 		fmt.Printf("Received signal: %v\n", sig)
 

@@ -30,3 +30,13 @@ func LoadConfig(filename string) (*Config, error) {
 
 	return &cfg, nil
 }
+
+func (cfg *Config) PrintData() {
+	// Print the config values for debugging purposes
+	fmt.Println("CONFIG VALUES\n=======")
+	fmt.Println("Port:", cfg.Port)
+	fmt.Println("Topic:", cfg.Topic)
+	fmt.Println("Server:", cfg.Server)
+	fmt.Println("Logging:", cfg.Logging)
+	fmt.Println("Name:", cfg.Name)
+}
