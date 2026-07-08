@@ -22,8 +22,13 @@ var err error
 // run_bootstrap uploads the bootstrap multiaddr to the API endpoint for other nodes to fetch.
 func run_bootstrap() {
 	// Print the bootstrap node's multiaddr for other nodes to connect to.
-	fmt.Println("\nBOOTSTRAP INFO\n========")
-	fmt.Println("Bootstrap node started.")
+	cfg.DebugLog("\nBOOTSTRAP INFO\n========")
+	cfg.DebugLog("Bootstrap node started.")
+
+	cfg.DebugLog("Addresses:")
+	for _, addr := range n.Host.Addrs() {
+		cfg.DebugLog(addr)
+	}
 
 	// Prefer a non-loopback, non-link-local address for remote peers.
 	address := n.Host.Addrs()[0].String()
@@ -46,7 +51,7 @@ func run_bootstrap() {
 	if externalAddress != "" {
 		address = externalAddress
 	}
-	fmt.Println("Using external address:", address)
+	cfg.DebugLog("Using external address:", address)
 
 	node := map[string]any{
 		"peer_id": n.Host.ID().String(),
@@ -57,7 +62,7 @@ func run_bootstrap() {
 
 	jsonData, err := json.Marshal(node)
 	if err != nil {
-		fmt.Println("Error marshaling bootstrap node:", err)
+		cfg.DebugLog("Error marshaling bootstrap node:", err)
 		util.StopProgram(1)
 	}
 
@@ -65,7 +70,7 @@ func run_bootstrap() {
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
-		fmt.Println("Error creating request:", err)
+		cfg.DebugLog("Error creating request:", err)
 		util.StopProgram(1)
 	}
 
@@ -74,18 +79,18 @@ func run_bootstrap() {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error uploading bootstrap node:", err)
+		cfg.DebugLog("Error uploading bootstrap node:", err)
 		util.StopProgram(1)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 && resp.StatusCode != 201 {
 		body, _ := io.ReadAll(resp.Body)
-		fmt.Println("Bootstrap upload failed:", resp.Status, string(body))
+		cfg.DebugLog("Bootstrap upload failed:", resp.Status, string(body))
 		util.StopProgram(1)
 	}
 
-	fmt.Println("Bootstrap node uploaded successfully.")
+	cfg.DebugLog("Bootstrap node uploaded successfully.")
 }
 
 // init loads the configuration from boot-config.yaml and prints the values for debugging.
@@ -93,7 +98,7 @@ func init() {
 	// Load the config
 	cfg, err = util.LoadConfig("boot-config.yaml")
 	if err != nil {
-		fmt.Println(err)
+		cfg.DebugLog("Error loading config:", err)
 		util.StopProgram(1)
 	}
 
@@ -105,7 +110,8 @@ func main() {
 	// Create a new node for bootstrap
 	n, err = node.NewNode(cfg.Port, nil, cfg.Name)
 	if err != nil {
-		panic(err)
+		cfg.DebugLog("Error creating bootstrap node:", err)
+		util.StopProgram(1)
 	}
 
 	sigChan := make(chan os.Signal, 1)
@@ -119,7 +125,7 @@ func main() {
 	go func() {
 
 		sig := <-sigChan
-		fmt.Printf("Received signal: %v\n", sig)
+		cfg.DebugLog("Received signal: %v\n", sig)
 
 		peerID := n.Host.ID().String()
 
@@ -131,24 +137,24 @@ func main() {
 
 		req, err := http.NewRequest("DELETE", url, nil)
 		if err != nil {
-			fmt.Println("Error creating delete request:", err)
+			cfg.DebugLog("Error creating delete request:", err)
 			os.Exit(1)
 		}
 
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
-			fmt.Println("Error deleting bootstrap node:", err)
+			cfg.DebugLog("Error deleting bootstrap node:", err)
 			os.Exit(1)
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != 200 && resp.StatusCode != 204 {
 			body, _ := io.ReadAll(resp.Body)
-			fmt.Println("Delete failed:", resp.Status, string(body))
+			cfg.DebugLog("Delete failed:", resp.Status, string(body))
 		}
 
-		fmt.Println("Bootstrap node removed successfully.")
+		cfg.DebugLog("Bootstrap node removed successfully.")
 		os.Exit(0)
 	}()
 

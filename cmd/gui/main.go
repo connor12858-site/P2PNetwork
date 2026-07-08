@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"fgov/network/pkg/node"
 	"fgov/network/pkg/util"
@@ -35,21 +36,21 @@ var err error
 func get_bootstrap() {
 	resp, err := http.Get(cfg.Server)
 	if err != nil {
-		fmt.Println("Error fetching bootstrap nodes:", err)
+		cfg.DebugLog("Error fetching bootstrap nodes:", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
-		fmt.Println("Bootstrap fetch failed:", resp.Status, string(body))
+		cfg.DebugLog("Bootstrap fetch failed:", resp.Status, string(body))
 		return
 	}
 
 	var result BootstrapResponse
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
-		fmt.Println("Error decoding bootstrap response:", err)
+		cfg.DebugLog("Error decoding bootstrap response:", err)
 		return
 	}
 
@@ -59,7 +60,7 @@ func get_bootstrap() {
 		}
 
 		full_addr := node.Address + "/p2p/" + node.PeerID
-		fmt.Println("Bootstrap node:", full_addr)
+		cfg.DebugLog("Bootstrap node:", full_addr)
 		BOOTSTRAP_PEERS = append(BOOTSTRAP_PEERS, full_addr)
 	}
 }
@@ -67,7 +68,7 @@ func get_bootstrap() {
 func init() {
 	cfg, err = util.LoadConfig("config.yaml")
 	if err != nil {
-		fmt.Println(err)
+		cfg.DebugLog("Error loading config:", err)
 		util.StopProgram(1)
 	}
 
@@ -120,6 +121,14 @@ func main() {
 
 		peersBox.Refresh()
 	}
+
+	// Periodically refresh the views every 5 seconds
+	go func() {
+		for {
+			refreshViews()
+			time.Sleep(5 * time.Second)
+		}
+	}()
 
 	toggle = widget.NewButton("Turn On", func() {
 		if n == nil || !n.IsRunning() {

@@ -52,6 +52,7 @@ func NewNode(listenPort int, bootstrapPeers []string, name string) (*Node, error
 		libp2p.ListenAddrStrings(
 			fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort),
 		),
+		libp2p.NATPortMap(),
 	)
 	if err != nil {
 		cancel()
