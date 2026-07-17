@@ -103,6 +103,7 @@ func main() {
 
 		if n != nil && n.IsRunning() {
 			connectedPeers := n.GetPeersSnapshot()
+			connectedPeers = util.SortPeersByName(connectedPeers) // Sort peers by name
 
 			for _, p := range connectedPeers {
 				if !strings.Contains(p.Name, "-bootstrap") {
@@ -157,6 +158,7 @@ func main() {
 	refreshButton := widget.NewButton("Refresh", refreshViews)
 
 	peersScroll := container.NewVScroll(peersBox)
+	peersScroll.SetMinSize(fyne.NewSize(200, 300))
 	appsScroll := container.NewVScroll(appsBox)
 
 	top := container.NewHBox(nodeNameLabel, status, widget.NewLabel("Node Name:"), nameEntryWrap, toggle, refreshButton)

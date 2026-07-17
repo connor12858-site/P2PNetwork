@@ -1,6 +1,7 @@
 param(
     [string]$OutDir = "./bin",
-    [string]$v = "1.0"
+    [string]$v = "1.0",
+    [string]$om = ""
 )
 
 $ErrorActionPreference = 'Stop'
@@ -13,13 +14,15 @@ if (-not (Test-Path -Path $OutDir)) {
 }
 
 foreach ($type in Get-ChildItem -Path .\cmd) {
-    Write-Host "Building $($type.Name)..."
-    $output = "$($type.Name)-$v.exe"
-    if ($type.Name -eq "gui") {
-        go build -x -ldflags "-H=windowsgui" -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
-    } else {
-        go build -x -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
-    }
+    if ($type.Name -ne $om) {
+        Write-Host "Building $($type.Name)..."
+        $output = "$($type.Name)-$v.exe"
+        if ($type.Name -eq "gui") {
+            go build -ldflags "-H=windowsgui" -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
+        } else {
+            go build -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
+        }
+    }   
 
 }
 
