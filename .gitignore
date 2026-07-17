@@ -14,3 +14,4 @@
 
 replace/
 /server/__pycache__
+*.pyc
