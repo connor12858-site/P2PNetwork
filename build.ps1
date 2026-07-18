@@ -1,7 +1,7 @@
 param(
     [string]$OutDir = "./bin",
     [string]$v = "1.0",
-    [string]$om = ""
+    [string]$cmd = "a"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,16 +14,16 @@ if (-not (Test-Path -Path $OutDir)) {
 }
 
 foreach ($type in Get-ChildItem -Path .\cmd) {
-    if ($type.Name -ne $om) {
+    if ($cmd -eq "a" -or $cmd -like ("*" + $type.name[0] + "*")) {
         Write-Host "Building $($type.Name)..."
         $output = "$($type.Name)-$v.exe"
         if ($type.Name -eq "gui") {
             go build -ldflags "-H=windowsgui" -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
+            # go build -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
         } else {
             go build -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
         }
-    }   
-
+    }
 }
 
 # Write-Host "Building peer..."
