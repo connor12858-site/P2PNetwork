@@ -3,8 +3,8 @@ import yaml
 import dotenv
 import os
 
-BASE_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = BASE_DIR / "data" / "config.yaml"
+BASE_DIR = Path(__file__).resolve().parent.parent / "data"
+CONFIG_PATH = BASE_DIR / "config.yaml"
 
 
 def load_config():
@@ -16,7 +16,7 @@ def load_config():
         dotenv.load_dotenv()
 
         cfg["password"] = os.getenv("PASSWORD", cfg["password"])
-        cfg["db"] = os.getenv("DB_PATH", cfg["db"])
+        cfg["db"] = BASE_DIR / os.getenv("DB_PATH", cfg["db"])
 
     return cfg
 

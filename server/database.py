@@ -6,6 +6,7 @@ DB = CONFIG["db"]
 
 
 def get_connection():
+    print(f"Connecting to database: {DB}")
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     return conn

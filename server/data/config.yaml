@@ -7,4 +7,4 @@ host: 0.0.0.0
 password: abc123
 
 # Database
-db: ./data/bootstraps.db
+db: bootstraps.db
