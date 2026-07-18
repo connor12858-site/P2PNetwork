@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -31,6 +32,10 @@ type BootstrapResponse struct {
 var BOOTSTRAP_PEERS = make([]string, 0, 1)
 var cfg *util.Config
 var err error
+
+var selectedNode node.PeerRecord
+var connectedPeers []node.PeerRecord
+var connectedPeerNames []string
 
 // Reads bootstrap peers from bs-nodes file.
 func get_bootstrap() {
@@ -86,87 +91,144 @@ func main() {
 	var n *node.Node
 	var toggle *widget.Button
 
-	status := widget.NewLabel("Stopped")
-	nodeNameLabel := widget.NewLabel("Name: (not started)")
-	progressLabel := widget.NewLabel("Ready")
+	// Data bindings for GUI elements
+	statusData := binding.NewString()
+	statusData.Set("Stopped")
+	nodeNameData := binding.NewString()
+	nodeNameData.Set("Name: (not started)")
+	progressData := binding.NewString()
+	progressData.Set("Ready")
+	nameData := binding.NewString()
+	nameData.Set(cfg.Name)
+	peerNames := binding.NewStringList()
+
+	// GUI elements
+	status := widget.NewLabelWithData(statusData)
+	nodeNameLabel := widget.NewLabelWithData(nodeNameData)
+	progressLabel := widget.NewLabelWithData(progressData)
 	progressLabel.Wrapping = fyne.TextWrapWord
 
-	nameEntry := widget.NewEntry()
-	nameEntry.SetText(cfg.Name) // Set the default name from config
+	nameEntry := widget.NewEntryWithData(nameData)
 	nameEntryWrap := container.NewGridWrap(fyne.NewSize(240, nameEntry.MinSize().Height), nameEntry)
+	nodeNameWrap := container.NewGridWrap(fyne.NewSize(220, nodeNameLabel.MinSize().Height), nodeNameLabel)
+	statusWrap := container.NewGridWrap(fyne.NewSize(160, status.MinSize().Height), status)
+	nodeNameFieldWrap := container.NewGridWrap(fyne.NewSize(90, status.MinSize().Height), widget.NewLabel("Node Name:"))
 
-	peersBox := container.NewVBox()
-	appsBox := container.NewVBox()
+	// Create a list widget to display connected peers
+	peerList := widget.NewListWithData(peerNames,
+		func() fyne.CanvasObject {
+			return widget.NewLabel("")
+		},
+		func(dataItem binding.DataItem, item fyne.CanvasObject) {
+			text := ""
+			if value, ok := dataItem.(binding.String); ok {
+				if got, err := value.Get(); err == nil {
+					text = got
+				}
+			}
+			item.(*widget.Label).SetText(text)
+		},
+	)
 
-	refreshViews := func() {
-		peersBox.Objects = nil
-
-		if n != nil && n.IsRunning() {
-			connectedPeers := n.GetPeersSnapshot()
-			connectedPeers = util.SortPeersByName(connectedPeers) // Sort peers by name
+	// Update the selectedNode to be whatever node is selected in the peer list
+	peerList.OnSelected = func(id widget.ListItemID) {
+		if id >= 0 && id < len(connectedPeerNames) {
+			peerName := connectedPeerNames[id]
 
 			for _, p := range connectedPeers {
-				if !strings.Contains(p.Name, "-bootstrap") {
-					peersBox.Add(widget.NewLabel(p.Name))
+				if p.Name == peerName {
+					selectedNode = p
+					break
 				}
 			}
 
-			status.SetText(fmt.Sprintf("Running - %d peers", len(connectedPeers)))
-			nodeNameLabel.SetText("Name: " + n.Name)
-			nameEntry.Disable() // Disable the name entry when the node is running
-		} else {
-			status.SetText("Stopped")
-			nodeNameLabel.SetText("Name: (not started)")
-			nameEntry.Enable() // Enable the name entry when the node is stopped
+			progressData.Set(fmt.Sprintf("Selected peer: %s (%s)", selectedNode.Name, selectedNode.AddrInfo.ID))
 		}
-
-		peersBox.Refresh()
 	}
 
-	// Periodically refresh the views every 5 seconds
+	// Function to refresh the views and update the GUI elements
+	refreshViews := func() {
+		connectedPeerNames = make([]string, 0)
+
+		if n != nil && n.IsRunning() {
+			connectedPeers = n.GetPeersSnapshot()
+			connectedPeers = util.SortPeersByName(connectedPeers)
+
+			for _, p := range connectedPeers {
+				if !strings.Contains(p.Name, "-bootstrap") {
+					connectedPeerNames = append(connectedPeerNames, p.Name)
+				}
+			}
+
+			statusData.Set(fmt.Sprintf("Running - %d peers", len(connectedPeers)))
+			nodeNameData.Set("Name: " + n.Name)
+			nameEntry.Disable()
+		} else {
+			statusData.Set("Stopped")
+			nodeNameData.Set("Name: (not started)")
+			nameEntry.Enable()
+		}
+
+		if err := peerNames.Set(connectedPeerNames); err != nil {
+			cfg.DebugLog("Error updating peer list:", err)
+		}
+	}
+
+	// Start a goroutine to refresh the views every second
 	go func() {
 		for {
 			refreshViews()
-			time.Sleep(5 * time.Second)
+			time.Sleep(1 * time.Second)
 		}
 	}()
 
+	// Create a toggle button to start/stop the node
 	toggle = widget.NewButton("Turn On", func() {
 		if n == nil || !n.IsRunning() {
 			var err error
-			progressLabel.SetText("Starting node...")
+			progressData.Set("Starting node...")
 			n, err = node.NewNode(cfg.Port, BOOTSTRAP_PEERS, strings.ReplaceAll(nameEntry.Text, "-bootstrap", ""))
 			if err != nil {
-				status.SetText("Start error: " + err.Error())
-				progressLabel.SetText("Start failed: " + err.Error())
+				statusData.Set("Start error: " + err.Error())
+				progressData.Set("Start failed: " + err.Error())
 				return
 			}
 
 			n.StartDiscovery(cfg.Topic)
-			progressLabel.SetText("Node started and discovery enabled")
+			progressData.Set("Node started and discovery enabled")
 			toggle.SetText("Turn Off")
 		} else {
-			progressLabel.SetText("Stopping node...")
+			progressData.Set("Stopping node...")
 			n.Close()
-			progressLabel.SetText("Node stopped")
+			progressData.Set("Node stopped")
 			toggle.SetText("Turn On")
 		}
-
-		refreshViews()
 	})
 
+	// Create a refresh button to manually refresh the views
 	refreshButton := widget.NewButton("Refresh", refreshViews)
 
-	peersScroll := container.NewVScroll(peersBox)
-	peersScroll.SetMinSize(fyne.NewSize(200, 300))
-	appsScroll := container.NewVScroll(appsBox)
-
-	top := container.NewHBox(nodeNameLabel, status, widget.NewLabel("Node Name:"), nameEntryWrap, toggle, refreshButton)
-	left := container.NewVBox(widget.NewLabel("Connected Peers"), peersScroll)
-	right := container.NewVBox(widget.NewLabel("Apps"), appsScroll)
-	main_con := container.NewHSplit(left, right)
+	// Layout the GUI elements in a border layout
+	top := container.NewHBox(nodeNameWrap, statusWrap, nodeNameFieldWrap, nameEntryWrap, toggle, refreshButton)
+	left := container.NewBorder(
+		widget.NewLabel("Connected Peers"), // top
+		nil,                                // bottom
+		nil,                                // left
+		nil,                                // right
+		peerList,                           // center fills remaining space
+	)
+	right := container.NewBorder(
+		widget.NewLabel("Apps"),
+		nil,
+		nil,
+		nil,
+		widget.NewLabel("No apps loaded"),
+	)
+	mainCon := container.NewHSplit(left, right)
+	mainCon.Offset = 0.30
 	bottom := container.NewPadded(progressLabel)
 
-	w.SetContent(container.NewBorder(top, bottom, nil, nil, main_con))
+	// Set the content of the window and run the application
+	w.SetContent(container.NewBorder(top, bottom, nil, nil, mainCon))
 	w.ShowAndRun()
 }
