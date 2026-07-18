@@ -9,14 +9,14 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-// FindPeers runs discovery and connects to discovered peers (exported for use by callers).
-func (n *Node) FindPeers() {
+// FindPeers runs discovery for topic and connects to discovered peers.
+func (n *Node) FindPeers(topic string) {
 	time.Sleep(3 * time.Second)
 
 	// Keep retrying discovery until the DHT has peers available.
 	for {
 		// Wait for at least one routing peer before attempting discovery.
-		peerChan, err := n.Discovery.FindPeers(n.Ctx, "fgov-network")
+		peerChan, err := n.Discovery.FindPeers(n.Ctx, topic)
 		if err != nil {
 			time.Sleep(5 * time.Second)
 			continue
@@ -133,5 +133,5 @@ func (n *Node) waitForRoutingPeers(minPeers int, timeout time.Duration) error {
 // It is safe to call multiple times; subsequent calls will start additional goroutines.
 func (n *Node) StartDiscovery(topic string) {
 	go n.AdvertiseDiscovery(topic)
-	go n.FindPeers()
+	go n.FindPeers(topic)
 }

@@ -12,12 +12,65 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // global variables
 var cfg *util.Config
 var n *node.Node
 var err error
+
+type BootstrapNode struct {
+	PeerID  string `json:"peer_id"`
+	Address string `json:"address"`
+}
+
+type BootstrapResponse struct {
+	Nodes []BootstrapNode `json:"nodes"`
+}
+
+// getBootstrapPeers returns bootstrap nodes already registered with the
+// registry. Joining them keeps all bootstrap nodes in one DHT routing domain.
+func getBootstrapPeers() []string {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(cfg.Server)
+	if err != nil {
+		cfg.DebugLog("Error fetching existing bootstrap nodes:", err)
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		cfg.DebugLog("Bootstrap fetch failed:", resp.Status, string(body))
+		return nil
+	}
+
+	var result BootstrapResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		cfg.DebugLog("Error decoding bootstrap response:", err)
+		return nil
+	}
+
+	peers := make([]string, 0, len(result.Nodes))
+	seen := make(map[string]struct{}, len(result.Nodes))
+	for _, bootstrap := range result.Nodes {
+		address := strings.TrimSpace(bootstrap.Address)
+		peerID := strings.TrimSpace(bootstrap.PeerID)
+		if address == "" || peerID == "" {
+			continue
+		}
+
+		fullAddr := address + "/p2p/" + peerID
+		if _, ok := seen[fullAddr]; ok {
+			continue
+		}
+		seen[fullAddr] = struct{}{}
+		peers = append(peers, fullAddr)
+	}
+
+	return peers
+}
 
 // run_bootstrap uploads the bootstrap multiaddr to the API endpoint for other nodes to fetch.
 func run_bootstrap() {
@@ -107,8 +160,8 @@ func init() {
 
 // main launches the bootstrap node, registers it with the server, and handles graceful shutdown.
 func main() {
-	// Create a new node for bootstrap
-	n, err = node.NewNode(cfg.Port, nil, cfg.Name)
+	// Join existing bootstrap nodes before registering this one so they share a DHT.
+	n, err = node.NewNode(cfg.Port, getBootstrapPeers(), cfg.Name)
 	if err != nil {
 		cfg.DebugLog("Error creating bootstrap node:", err)
 		util.StopProgram(1)

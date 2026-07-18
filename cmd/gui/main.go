@@ -160,7 +160,7 @@ func main() {
 				}
 			}
 
-			statusData.Set(fmt.Sprintf("Running - %d peers", len(connectedPeers)))
+			statusData.Set(fmt.Sprintf("Running - %d peers", len(connectedPeers) - 1))
 			nodeNameData.Set("Name: " + n.Name)
 			nameEntry.Disable()
 		} else {

@@ -82,8 +82,7 @@ func main() {
 		panic(err)
 	}
 
-	go n.AdvertiseDiscovery(cfg.Topic)
-	go n.FindPeers()
+	n.StartDiscovery(cfg.Topic)
 
 	// Start a command-line interface for user interaction with the node.
 	scanner := bufio.NewScanner(os.Stdin)
