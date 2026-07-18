@@ -15,3 +15,5 @@
 replace/
 /server/__pycache__
 *.pyc
+/server/dist
+/server/build
