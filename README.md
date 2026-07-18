@@ -171,26 +171,4 @@ This compiles binaries from all `cmd/*` entrypoints.
 ## Known development caveats
 
 - GUI builds may fail on minimal Linux environments missing OpenGL/X11 headers.
-- `cmd/peer` currently advertises using configured `topic` but discovery lookup is fixed to `fgov-network` in `pkg/node/discovery.go`.
-
-## Troubleshooting
-
-### Peer cannot fetch bootstrap list
-- Ensure API is running at `config.yaml -> server`.
-- Check `GET /health`.
-- Ensure password in peer/bootstrap config matches `server/data/config.yaml`.
-
-### Peer connection fails
-- Verify reachable IP/port in reported multiaddress.
-- Confirm firewall/NAT allows traffic.
-- Confirm target process is still running.
-
-### GUI fails to compile on Linux
-- Install OpenGL + X11 development packages required by GLFW/Fyne.
-
-## Future improvements
-
-- Add authentication beyond shared query-string password.
-- Add structured logging and metrics.
-- Add automated tests for node/discovery behavior.
-- Unify discovery topic usage between advertise and lookup.
+- Peer names and peer discovery is inconsintent among several bootstrap nodes (Will fix bootstrap nodes pooling info).
