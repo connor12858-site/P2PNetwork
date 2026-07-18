@@ -27,7 +27,7 @@ func shortPeerLabel(peerID string) string {
 	if len(peerID) <= 8 {
 		return peerID
 	}
-	return peerID[:8]
+	return peerID[len(peerID)-8:]
 }
 
 // updatePeerName updates the name for a peer in the peer map.

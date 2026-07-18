@@ -41,7 +41,11 @@ func (n *Node) FindPeers() {
 			}
 
 			// Attempt to connect to the discovered peer in a separate goroutine.
+			var dialSem = make(chan struct{}, 5) // Limit concurrent dials to 5
 			go func(p peer.AddrInfo) {
+				dialSem <- struct{}{} // Acquire a slot
+				defer func() { <-dialSem }()
+
 				ctx, cancel := context.WithTimeout(n.Ctx, 5*time.Second)
 				defer cancel()
 
