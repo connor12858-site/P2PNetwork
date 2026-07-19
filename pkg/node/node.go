@@ -41,6 +41,8 @@ type Node struct {
 
 	peerMu  sync.Mutex
 	printMu sync.Mutex
+	appMu   sync.RWMutex
+	apps    map[string]App
 }
 
 // NewNode creates and initializes a new libp2p node listening on the specified port.
@@ -121,6 +123,7 @@ func NewNode(listenPort int, bootstrapPeers []string, name string) (*Node, error
 		Discovery:       routingDiscovery,
 		Peers:           make(map[peer.ID]PeerRecord),
 		DiscoveredPeers: make(map[peer.ID]PeerRecord),
+		apps:            make(map[string]App),
 	}
 
 	// Log the node startup information, including peer ID and listening addresses.

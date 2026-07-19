@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"fgov/network/pkg/apps"
+	_ "fgov/network/pkg/apps/builtin" // Load the compiled-in app catalogue.
 	"fgov/network/pkg/node"
 	"fgov/network/pkg/util"
 
@@ -90,6 +93,7 @@ func main() {
 
 	var n *node.Node
 	var toggle *widget.Button
+	var appButtons []*widget.Button
 
 	// Data bindings for GUI elements
 	statusData := binding.NewString()
@@ -160,17 +164,26 @@ func main() {
 				}
 			}
 
-			statusData.Set(fmt.Sprintf("Running - %d peers", len(connectedPeers) - 1))
+			statusData.Set(fmt.Sprintf("Running - %d peers", len(connectedPeers)-1))
 			nodeNameData.Set("Name: " + n.Name)
 			nameEntry.Disable()
 		} else {
 			statusData.Set("Stopped")
 			nodeNameData.Set("Name: (not started)")
 			nameEntry.Enable()
+			selectedNode = node.PeerRecord{}
+			peerList.UnselectAll()
 		}
 
 		if err := peerNames.Set(connectedPeerNames); err != nil {
 			cfg.DebugLog("Error updating peer list:", err)
+		}
+		for _, appButton := range appButtons {
+			if n != nil && n.IsRunning() && selectedNode.AddrInfo.ID != "" {
+				appButton.Enable()
+			} else {
+				appButton.Disable()
+			}
 		}
 	}
 
@@ -187,10 +200,18 @@ func main() {
 		if n == nil || !n.IsRunning() {
 			var err error
 			progressData.Set("Starting node...")
+			selectedNode = node.PeerRecord{}
+			peerList.UnselectAll()
 			n, err = node.NewNode(cfg.Port, BOOTSTRAP_PEERS, strings.ReplaceAll(nameEntry.Text, "-bootstrap", ""))
 			if err != nil {
 				statusData.Set("Start error: " + err.Error())
 				progressData.Set("Start failed: " + err.Error())
+				return
+			}
+
+			if err := apps.RegisterAll(n); err != nil {
+				n.Close()
+				progressData.Set("App registration failed: " + err.Error())
 				return
 			}
 
@@ -217,12 +238,47 @@ func main() {
 		nil,                                // right
 		peerList,                           // center fills remaining space
 	)
+	appPanel := container.NewVBox()
+	for _, registration := range apps.All() {
+		registration := registration
+		buttonLabel := "Run " + registration.App.Name
+		if registration.Open != nil {
+			buttonLabel = "Open " + registration.App.Name
+		}
+		appButton := widget.NewButton(buttonLabel, func() {
+			if n == nil || !n.IsRunning() || selectedNode.AddrInfo.ID == "" {
+				progressData.Set("Select a connected peer before running an app")
+				return
+			}
+			if registration.Open != nil {
+				registration.Open(n, selectedNode)
+				return
+			}
+
+			peer := selectedNode
+			progressData.Set("Running " + registration.App.Name + " for " + peer.Name + "...")
+			go func() {
+				ctx, cancel := context.WithTimeout(n.Ctx, 10*time.Second)
+				defer cancel()
+
+				reply, err := registration.Run(ctx, n, peer.AddrInfo.ID)
+				if err != nil {
+					progressData.Set(registration.App.Name + " failed: " + err.Error())
+					return
+				}
+				progressData.Set(registration.App.Name + " reply from " + peer.Name + ": " + reply)
+			}()
+		})
+		appButton.Disable()
+		appButtons = append(appButtons, appButton)
+		appPanel.Add(appButton)
+	}
 	right := container.NewBorder(
-		widget.NewLabel("Apps"),
+		widget.NewLabel("Apps (select a peer first)"),
 		nil,
 		nil,
 		nil,
-		widget.NewLabel("No apps loaded"),
+		appPanel,
 	)
 	mainCon := container.NewHSplit(left, right)
 	mainCon.Offset = 0.30
