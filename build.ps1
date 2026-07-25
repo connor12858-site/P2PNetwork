@@ -19,19 +19,10 @@ foreach ($type in Get-ChildItem -Path .\cmd) {
         $output = "$($type.Name)-$v.exe"
         if ($type.Name -eq "gui") {
             go build -ldflags "-H=windowsgui" -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
-            # go build -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
         } else {
             go build -o (Join-Path $OutDir $output) "./cmd/$($type.Name)"
         }
     }
 }
-
-# Write-Host "Building peer..."
-# $peerOutput = "peer-" + $v + ".exe"
-# go build -o (Join-Path $OutDir $peerOutput) ./cmd/peer
-
-# Write-Host "Building bootstrap..."
-# $bootstrapOutput = "bootstrap-" + $v + ".exe"
-# go build -o (Join-Path $OutDir $bootstrapOutput) ./cmd/bootstrap
 
 Write-Host "Build complete. Binaries placed in:" (Resolve-Path $OutDir)
