@@ -1,11 +1,13 @@
-# Network
+# P2P Network Configuration
 port: 0
-server: http://127.0.0.1:8000
+
+# Bootstrap Server
+server: http://192.168.0.245:8000
 password: abc123
 
 # Personalization
 topic: fgov
-name: Desk
+name: inital
 
 # Debug
-logging: false
+logging: true

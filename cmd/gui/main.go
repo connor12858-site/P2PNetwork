@@ -164,7 +164,7 @@ func main() {
 				}
 			}
 
-			statusData.Set(fmt.Sprintf("Running - %d peers", len(connectedPeers)-1))
+			statusData.Set(fmt.Sprintf("Running - %d peers", len(connectedPeers)))
 			nodeNameData.Set("Name: " + n.Name)
 			nameEntry.Disable()
 		} else {
@@ -202,7 +202,7 @@ func main() {
 			progressData.Set("Starting node...")
 			selectedNode = node.PeerRecord{}
 			peerList.UnselectAll()
-			n, err = node.NewNode(cfg.Port, BOOTSTRAP_PEERS, strings.ReplaceAll(nameEntry.Text, "-bootstrap", ""))
+			n, err = node.NewNode(cfg.Port, BOOTSTRAP_PEERS, nameEntry.Text)
 			if err != nil {
 				statusData.Set("Start error: " + err.Error())
 				progressData.Set("Start failed: " + err.Error())

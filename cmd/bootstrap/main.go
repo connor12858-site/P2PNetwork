@@ -146,10 +146,10 @@ func run_bootstrap() {
 	cfg.DebugLog("Bootstrap node uploaded successfully.")
 }
 
-// init loads the configuration from boot-config.yaml and prints the values for debugging.
+// init loads the configuration from config.yaml and prints the values for debugging.
 func init() {
 	// Load the config
-	cfg, err = util.LoadConfig("boot-config.yaml")
+	cfg, err = util.LoadConfig("config.yaml")
 	if err != nil {
 		cfg.DebugLog("Error loading config:", err)
 		util.StopProgram(1)
@@ -161,7 +161,7 @@ func init() {
 // main launches the bootstrap node, registers it with the server, and handles graceful shutdown.
 func main() {
 	// Join existing bootstrap nodes before registering this one so they share a DHT.
-	n, err = node.NewNode(cfg.Port, getBootstrapPeers(), cfg.Name)
+	n, err = node.NewNode(cfg.Port, getBootstrapPeers(), cfg.Name+"-bootstrap")
 	if err != nil {
 		cfg.DebugLog("Error creating bootstrap node:", err)
 		util.StopProgram(1)
