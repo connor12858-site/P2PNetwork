@@ -27,8 +27,9 @@ func Open(n *node.Node, peerRecord node.PeerRecord) {
 	refresh()
 
 	// entry is the text entry for new messages, and status shows the current status of sending.
-	entry := widget.NewMultiLineEntry()
+	entry := widget.NewEntry()
 	entry.SetPlaceHolder("Write a message...")
+	entry.Wrapping = fyne.TextWrapWord
 	status := widget.NewLabel("")
 
 	// sendMessage sends the message in the entry to the peer and clears the entry.

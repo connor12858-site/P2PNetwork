@@ -13,6 +13,7 @@ import (
 
 	"fgov/network/pkg/node"
 
+	"fyne.io/fyne/v2"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -21,7 +22,7 @@ import (
 const (
 	ID       = "text"
 	Name     = "Messages"
-	Protocol = protocol.ID("/p2pnetwork/text/1.0.0")
+	Protocol = protocol.ID("/p2pnetwork/text/1.1.0")
 )
 
 // Message is one plain-text message exchanged by two peers.
@@ -87,6 +88,7 @@ func handleStream(n *node.Node) network.StreamHandler {
 			message.Sent = time.Now()
 		}
 		appendMessage(n, stream.Conn().RemotePeer(), message)
+		sendNotication(n, message.From, message.Text)
 	}
 }
 
@@ -95,6 +97,11 @@ func appendMessage(n *node.Node, peerID peer.ID, message Message) {
 	defer conversations.Unlock()
 	key := conversationKey(n, peerID)
 	conversations.items[key] = append(conversations.items[key], message)
+}
+
+func sendNotication(n *node.Node, from, text string) {
+	notification := fyne.NewNotification("Message From: " + from, text)
+	fyne.CurrentApp().SendNotification(notification)
 }
 
 func conversationKey(n *node.Node, peerID peer.ID) string {

@@ -87,7 +87,7 @@ func init() {
 func main() {
 	get_bootstrap()
 
-	a := app.New()
+	a := app.NewWithID("com.connor12858.p2pnetwork")
 	w := a.NewWindow("P2P Network")
 	w.Resize(fyne.NewSize(720, 480))
 
